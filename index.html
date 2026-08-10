@@ -659,23 +659,25 @@
           View on GitLab →
         </a>
       </div>
-
       <div class="project-card">
         <div class="project-number">03</div>
-        <div class="project-title">Multi-Environment K8s Platform</div>
+        <div class="project-title">Azure Landing Zone (Bicep)</div>
         <div class="project-desc">
-          Production-grade Kubernetes platform with separate dev/staging/prod namespaces, RBAC policies, AWS Secrets Manager integration via External Secrets Operator, and GitHub Actions approval gates before prod deployments.
+          A foundational Azure landing zone provisioned entirely with Bicep — user-assigned managed identity, RBAC, an enforced tag Policy (Deny), VNet with NSG-segmented subnets, and cost budgets — then extended with an AKS cluster deployed onto the governed network. Scoped against the AZ-104 domains and verified live: policy blocks untagged resources, and AKS nodes run inside snet-aks (10.20.1.x).
         </div>
         <div class="project-stack">
-          <span class="stack-tag">Terraform</span>
-          <span class="stack-tag">EKS</span>
-          <span class="stack-tag">Helm</span>
-          <span class="stack-tag">ArgoCD</span>
-          <span class="stack-tag">GitHub Actions</span>
-          <span class="stack-tag">Secrets Manager</span>
+          <span class="stack-tag">Bicep</span>
+          <span class="stack-tag">Azure</span>
+          <span class="stack-tag">Entra ID</span>
+          <span class="stack-tag">Azure Policy</span>
+          <span class="stack-tag">AKS</span>
+          <span class="stack-tag">RBAC</span>
         </div>
-        <a href="https://gitlab.com/Purple.Phoenix/gitops-project" target="_blank" class="project-link">
-          Coming soon →
+        <a href="azure-landing-zone.html" class="project-link">
+          View Live Demo →
+        </a>
+        <a href="https://github.com/BabaGee01/azure-landing-zone-bicep" target="_blank" class="project-link">
+          View on GitHub →
         </a>
       </div>
 

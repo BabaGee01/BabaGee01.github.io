@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Azure Landing Zone — Interactive Architecture · Jide Oloko</title>
+<meta name="description" content="An Azure landing zone provisioned entirely in Bicep — identity, governance, networking and AKS. Explore the topology and see the real deployment evidence.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0e1726;
+    --ink-2:#0b1220;
+    --panel:#131f36;
+    --panel-2:#16233d;
+    --line:#26385c;
+    --line-soft:#1d2c49;
+    --azure:#4c9df0;
+    --azure-dim:#2f6fb3;
+    --teal:#3fb488;
+    --coral:#e8635f;
+    --amber2:#dda94a;
+    --hi:#e9eff8;
+    --mid:#9fb0cc;
+    --lo:#6b7d9e;
+    --radius:14px;
+    --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --disp:'Space Grotesk',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 78% -8%, rgba(76,157,240,.10), transparent 60%),
+      radial-gradient(900px 500px at 0% 100%, rgba(63,180,136,.06), transparent 55%),
+      var(--ink);
+    color:var(--hi);
+    font-family:var(--disp);
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+
+  /* blueprint grid overlay */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:
+      linear-gradient(var(--line-soft) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line-soft) 1px,transparent 1px);
+    background-size:44px 44px;
+    opacity:.20;
+    -webkit-mask-image:radial-gradient(circle at 50% 30%,#000,transparent 82%);
+            mask-image:radial-gradient(circle at 50% 30%,#000,transparent 82%);
+  }
+  .wrap,header,footer,main{position:relative;z-index:1}
+
+  /* ---------- header ---------- */
+  header{padding:52px 0 8px}
+  .eyebrow{
+    font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--azure);display:flex;align-items:center;gap:12px;margin:0 0 22px;
+  }
+  .eyebrow::before{content:"";width:26px;height:1px;background:var(--azure);display:inline-block}
+  h1{
+    font-family:var(--disp);font-weight:700;font-size:clamp(38px,6vw,68px);
+    line-height:1.02;letter-spacing:-.02em;margin:0 0 20px;
+  }
+  h1 .accent{
+    background:linear-gradient(100deg,var(--azure),var(--teal));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .lede{font-size:clamp(16px,2vw,19px);color:var(--mid);max-width:640px;margin:0 0 26px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 8px}
+  .chip{
+    font-family:var(--mono);font-size:12px;color:var(--mid);
+    border:1px solid var(--line);background:rgba(19,31,54,.6);
+    padding:7px 12px;border-radius:999px;display:inline-flex;gap:8px;align-items:center;
+  }
+  .chip b{color:var(--hi);font-weight:600}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+
+  /* ---------- section framing ---------- */
+  .sec-head{display:flex;align-items:baseline;gap:16px;margin:64px 0 20px}
+  .sec-num{font-family:var(--mono);font-size:13px;color:var(--azure);letter-spacing:.1em}
+  .sec-title{font-family:var(--disp);font-weight:600;font-size:clamp(22px,3vw,30px);letter-spacing:-.01em;margin:0}
+  .sec-sub{color:var(--lo);font-size:15px;margin:2px 0 0}
+
+  /* ---------- explorer layout ---------- */
+  .explorer{display:grid;grid-template-columns:1.05fr .95fr;gap:22px;align-items:start}
+  @media(max-width:900px){.explorer{grid-template-columns:1fr}}
+
+  /* topology */
+  .topo{
+    border:1px solid var(--line);border-radius:var(--radius);
+    background:linear-gradient(180deg,rgba(22,35,61,.7),rgba(11,18,32,.7));
+    padding:16px;
+  }
+  .scope{
+    border:1px dashed var(--line);border-radius:12px;padding:12px;position:relative;
+    background:rgba(76,157,240,.03);
+  }
+  .scope + .scope{margin-top:12px}
+  .scope-label{
+    font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--lo);margin:0 0 10px;display:flex;justify-content:space-between;gap:8px;
+  }
+  .scope-label .tagv{color:var(--azure)}
+  .scope.rg{border-color:var(--line);background:rgba(63,180,136,.03);margin-top:12px}
+  .scope.vnet{border-style:solid;border-color:var(--line-soft);background:rgba(76,157,240,.05);margin-top:12px}
+  .row{display:grid;gap:10px}
+  .row.two{grid-template-columns:1fr 1fr}
+  @media(max-width:520px){.row.two{grid-template-columns:1fr}}
+
+  .node{
+    width:100%;text-align:left;cursor:pointer;
+    font-family:var(--disp);color:var(--hi);
+    border:1px solid var(--line);border-radius:10px;
+    background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    padding:12px 13px;display:flex;flex-direction:column;gap:5px;
+    transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease;
+  }
+  .node:hover{transform:translateY(-2px);border-color:var(--azure);box-shadow:0 8px 26px rgba(0,0,0,.35)}
+  .node:focus-visible{outline:2px solid var(--azure);outline-offset:2px}
+  .node.is-active{border-color:var(--azure);box-shadow:0 0 0 1px var(--azure),0 10px 30px rgba(76,157,240,.18)}
+  .node .n-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .node .n-name{font-weight:600;font-size:15px;letter-spacing:-.01em}
+  .node .n-id{font-family:var(--mono);font-size:11px;color:var(--lo)}
+  .node .n-dom{
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+    padding:3px 7px;border-radius:6px;border:1px solid var(--line);color:var(--mid);white-space:nowrap;
+  }
+  .node[data-tone="identity"] .n-dom{color:var(--azure);border-color:var(--azure-dim)}
+  .node[data-tone="gov"] .n-dom{color:var(--amber2);border-color:#6b5626}
+  .node[data-tone="net"] .n-dom{color:var(--teal);border-color:#2c6b53}
+  .node[data-tone="compute"] .n-dom{color:#c58ff0;border-color:#5a3d7a}
+  .node .n-line{width:100%;height:1px;background:var(--line-soft)}
+  .node .n-meta{font-family:var(--mono);font-size:11px;color:var(--mid)}
+
+  .aks-node{margin-top:12px}
+  .aks-node .n-name{display:flex;align-items:center;gap:9px}
+  .aks-node .n-name::before{content:"";width:8px;height:8px;border-radius:2px;background:#c58ff0;box-shadow:0 0 10px #c58ff0}
+
+  .hint{font-family:var(--mono);font-size:11.5px;color:var(--lo);margin:12px 2px 0;display:flex;align-items:center;gap:8px}
+  .hint::before{content:"▸";color:var(--azure)}
+
+  /* detail drawer */
+  .drawer{
+    border:1px solid var(--line);border-radius:var(--radius);
+    background:linear-gradient(180deg,rgba(19,31,54,.85),rgba(11,18,32,.9));
+    padding:0;overflow:hidden;position:sticky;top:18px;min-height:420px;
+    display:flex;flex-direction:column;
+  }
+  .d-head{padding:18px 20px 14px;border-bottom:1px solid var(--line-soft)}
+  .d-kicker{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--azure);margin:0 0 7px}
+  .d-title{font-family:var(--disp);font-weight:600;font-size:22px;letter-spacing:-.01em;margin:0 0 6px}
+  .d-blurb{color:var(--mid);font-size:14.5px;margin:8px 0 0}
+  .d-body{padding:16px 20px 20px;display:flex;flex-direction:column;gap:16px}
+  .d-label{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--lo);margin:0 0 8px;display:flex;align-items:center;gap:8px}
+
+  pre{
+    margin:0;font-family:var(--mono);font-size:12.5px;line-height:1.6;
+    background:var(--ink-2);border:1px solid var(--line-soft);border-radius:10px;
+    padding:13px 14px;overflow-x:auto;color:#cdd8ec;
+  }
+  pre .c-key{color:var(--azure)}
+  pre .c-str{color:var(--teal)}
+  pre .c-com{color:var(--lo)}
+  pre .c-ok{color:var(--teal);font-weight:600}
+  pre .c-no{color:var(--coral);font-weight:600}
+  pre .c-dim{color:var(--lo)}
+
+  .proof{border-radius:10px;border:1px solid var(--line-soft);overflow:hidden}
+  .proof-bar{
+    display:flex;align-items:center;gap:8px;padding:8px 12px;
+    background:rgba(0,0,0,.25);border-bottom:1px solid var(--line-soft);
+    font-family:var(--mono);font-size:11px;color:var(--lo);
+  }
+  .proof-bar .tl{display:flex;gap:6px;margin-right:6px}
+  .proof-bar .tl i{width:10px;height:10px;border-radius:50%;display:inline-block;background:#33425e}
+  .proof.ok .proof-bar{color:var(--teal)}
+  .proof.no .proof-bar{color:var(--coral)}
+  .proof pre{border:0;border-radius:0}
+
+  /* governance spotlight */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:760px){.split{grid-template-columns:1fr}}
+  .card{
+    border:1px solid var(--line);border-radius:var(--radius);
+    background:linear-gradient(180deg,rgba(19,31,54,.7),rgba(11,18,32,.75));
+    padding:18px 18px 20px;
+  }
+  .card.deny{border-color:#5e2f2e}
+  .card.allow{border-color:#2c5a48}
+  .card h3{font-family:var(--disp);font-weight:600;font-size:17px;margin:0 0 4px;display:flex;align-items:center;gap:9px}
+  .card.deny h3::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--coral);box-shadow:0 0 10px var(--coral)}
+  .card.allow h3::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--teal);box-shadow:0 0 10px var(--teal)}
+  .card p{color:var(--mid);font-size:13.5px;margin:0 0 13px}
+  .card .diff{font-family:var(--mono);font-size:12px;color:var(--lo);margin-top:12px}
+  .card .diff b{color:var(--hi)}
+
+  /* domain coverage */
+  .domains{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  @media(max-width:760px){.domains{grid-template-columns:1fr 1fr}}
+  @media(max-width:440px){.domains{grid-template-columns:1fr}}
+  .dom{
+    border:1px solid var(--line);border-radius:12px;padding:16px;
+    background:linear-gradient(180deg,rgba(19,31,54,.6),rgba(11,18,32,.6));
+  }
+  .dom .w{font-family:var(--mono);font-size:12px;color:var(--azure);letter-spacing:.05em}
+  .dom .nm{font-family:var(--disp);font-weight:600;font-size:16px;margin:6px 0 8px}
+  .dom .bar{height:6px;border-radius:3px;background:var(--line-soft);overflow:hidden}
+  .dom .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--azure),var(--teal))}
+  .dom ul{margin:12px 0 0;padding:0;list-style:none;font-family:var(--mono);font-size:11.5px;color:var(--mid)}
+  .dom li{padding:3px 0 3px 14px;position:relative}
+  .dom li::before{content:"·";position:absolute;left:2px;color:var(--azure)}
+
+  /* learnings */
+  .learn{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.learn{grid-template-columns:1fr}}
+  .learn .item{border-left:2px solid var(--azure);padding:4px 0 4px 16px}
+  .learn .item h4{font-family:var(--mono);font-size:13px;color:var(--hi);margin:0 0 5px;font-weight:600}
+  .learn .item p{color:var(--mid);font-size:13.5px;margin:0}
+  .learn .item code{font-family:var(--mono);font-size:12px;color:var(--azure);background:rgba(76,157,240,.1);padding:1px 5px;border-radius:4px}
+
+  /* footer / cta */
+  footer{margin:72px 0 40px;border-top:1px solid var(--line-soft);padding-top:28px}
+  .foot-grid{display:flex;flex-wrap:wrap;justify-content:space-between;gap:20px;align-items:center}
+  .cta-row{display:flex;flex-wrap:wrap;gap:12px}
+  .btn{
+    font-family:var(--disp);font-weight:600;font-size:14px;text-decoration:none;
+    padding:12px 20px;border-radius:10px;display:inline-flex;align-items:center;gap:9px;
+    transition:transform .15s ease,box-shadow .15s ease;
+  }
+  .btn.primary{background:linear-gradient(100deg,var(--azure),var(--azure-dim));color:#06111f}
+  .btn.ghost{border:1px solid var(--line);color:var(--hi)}
+  .btn:hover{transform:translateY(-2px)}
+  .btn.primary:hover{box-shadow:0 10px 26px rgba(76,157,240,.3)}
+  .foot-note{font-family:var(--mono);font-size:12px;color:var(--lo);max-width:420px}
+  .foot-note b{color:var(--mid)}
+
+  @media(prefers-reduced-motion:reduce){
+    *{transition:none !important;scroll-behavior:auto !important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Azure Landing Zone · Infrastructure as Code</p>
+    <h1>Built as <span class="accent">Bicep</span>.<br>Verified in production.</h1>
+    <p class="lede">A foundational Azure landing zone — identity, governance, networking and an AKS cluster — provisioned entirely as code, then proven live. Every component below is interactive: open one to see the Bicep that defines it and the real deployment evidence.</p>
+    <div class="meta">
+      <span class="chip"><span class="dot"></span> <b>Deployed</b> &amp; verified</span>
+      <span class="chip">Region <b>uksouth</b></span>
+      <span class="chip">IaC <b>Bicep</b></span>
+      <span class="chip">9 resources · 1 subscription</span>
+      <span class="chip">Mapped to <b>AZ-104</b></span>
+    </div>
+  </header>
+
+  <!-- ============ EXPLORER ============ -->
+  <div class="sec-head">
+    <span class="sec-num">01</span>
+    <div>
+      <h2 class="sec-title">Explore the topology</h2>
+      <p class="sec-sub">Click any component — the panel shows what it does, the Bicep behind it, and the real CLI output proving it ran.</p>
+    </div>
+  </div>
+
+  <div class="explorer">
+    <!-- topology -->
+    <div class="topo" role="group" aria-label="Azure resource topology">
+      <div class="scope">
+        <div class="scope-label"><span>Subscription</span><span class="tagv">6216c817·····b1100e325357</span></div>
+
+        <div class="scope rg">
+          <div class="scope-label"><span>Resource Group — rg-gitops-dev</span><span class="tagv">tagged · governed</span></div>
+
+          <div class="row two">
+            <button class="node" data-key="identity" data-tone="identity">
+              <div class="n-top"><span class="n-name">Managed Identity</span><span class="n-dom">Identity</span></div>
+              <span class="n-id">id-gitops-dev</span>
+              <div class="n-line"></div>
+              <span class="n-meta">user-assigned · reused by AKS</span>
+            </button>
+
+            <button class="node" data-key="rbac" data-tone="gov">
+              <div class="n-top"><span class="n-name">RBAC</span><span class="n-dom">Governance</span></div>
+              <span class="n-id">Contributor assignments</span>
+              <div class="n-line"></div>
+              <span class="n-meta">identity + admin group</span>
+            </button>
+          </div>
+
+          <div class="row two" style="margin-top:10px">
+            <button class="node" data-key="policy" data-tone="gov">
+              <div class="n-top"><span class="n-name">Azure Policy</span><span class="n-dom">Governance</span></div>
+              <span class="n-id">require-environment-tag</span>
+              <div class="n-line"></div>
+              <span class="n-meta">Deny effect · enforced</span>
+            </button>
+
+            <button class="node" data-key="budget" data-tone="gov">
+              <div class="n-top"><span class="n-name">Budget</span><span class="n-dom">Governance</span></div>
+              <span class="n-id">monthly-budget · £50</span>
+              <div class="n-line"></div>
+              <span class="n-meta">80% actual · 100% forecast</span>
+            </button>
+          </div>
+
+          <div class="scope vnet">
+            <div class="scope-label"><span>Virtual Network — vnet-gitops-dev</span><span class="tagv">10.20.0.0/16</span></div>
+            <div class="row two">
+              <button class="node" data-key="snetaks" data-tone="net">
+                <div class="n-top"><span class="n-name">snet-aks</span><span class="n-dom">Networking</span></div>
+                <span class="n-id">10.20.1.0/24</span>
+                <div class="n-line"></div>
+                <span class="n-meta">nsg-gitops-aks-dev</span>
+              </button>
+              <button class="node" data-key="snetapp" data-tone="net">
+                <div class="n-top"><span class="n-name">snet-app</span><span class="n-dom">Networking</span></div>
+                <span class="n-id">10.20.2.0/24</span>
+                <div class="n-line"></div>
+                <span class="n-meta">nsg-gitops-app-dev · 443</span>
+              </button>
+            </div>
+          </div>
+
+          <button class="node aks-node" data-key="aks" data-tone="compute">
+            <div class="n-top"><span class="n-name">AKS — aks-gitops-dev</span><span class="n-dom">Compute</span></div>
+            <span class="n-id">Kubernetes 1.35.6 · 2× Standard_D2s_v3</span>
+            <div class="n-line"></div>
+            <span class="n-meta">nodes deployed into snet-aks · uses id-gitops-dev</span>
+          </button>
+        </div>
+      </div>
+      <p class="hint">Tip: the AKS nodes land on 10.20.1.x — inside snet-aks. Open it to see the proof.</p>
+    </div>
+
+    <!-- drawer -->
+    <div class="drawer" id="drawer" aria-live="polite">
+      <div class="d-head">
+        <p class="d-kicker" id="d-kicker">Select a component</p>
+        <h3 class="d-title" id="d-title">The landing zone, component by component</h3>
+        <p class="d-blurb" id="d-blurb">Pick any box on the left. You'll see a plain description, the Bicep snippet that provisions it, and the actual command-line evidence captured during deployment.</p>
+      </div>
+      <div class="d-body" id="d-body">
+        <div>
+          <p class="d-label">Why this exists</p>
+          <p style="color:var(--mid);font-size:14px;margin:0">A landing zone is the governed foundation a workload runs on — identity, access, network boundaries and cost controls established <em>before</em> any app is deployed. This one is 100% Bicep, so the whole environment is reproducible with a single command.</p>
+        </div>
+        <div>
+          <p class="d-label">Deploy</p>
+          <pre><span class="c-key">az</span> deployment sub create \
+  --location uksouth \
+  --template-file main.bicep \
+  --parameters main.parameters.json</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ GOVERNANCE SPOTLIGHT ============ -->
+  <div class="sec-head">
+    <span class="sec-num">02</span>
+    <div>
+      <h2 class="sec-title">Governance, proven</h2>
+      <p class="sec-sub">The require-tag policy flipped from audit to Deny. Same request, one tag of difference — one is blocked, one is allowed.</p>
+    </div>
+  </div>
+
+  <div class="split">
+    <div class="card deny">
+      <h3>Blocked — no environment tag</h3>
+      <p>Creating a storage account without the required tag is rejected at the control plane, before anything is provisioned.</p>
+      <div class="proof no">
+        <div class="proof-bar"><span class="tl"><i></i><i></i><i></i></span> RequestDisallowedByPolicy</div>
+<pre><span class="c-no">(RequestDisallowedByPolicy)</span> Resource 'denytest1145'
+was disallowed by policy.
+  policyDefinition: <span class="c-str">"Require a tag on resources"</span>
+  <span class="c-key">policyDefinitionEffect</span>: <span class="c-no">"deny"</span>
+  <span class="c-key">tagName</span>: <span class="c-str">"environment"</span>
+  <span class="c-key">operator</span>: "Exists" → <span class="c-no">false</span></pre>
+      </div>
+      <p class="diff">Difference from the request below: <b>no tags</b>.</p>
+    </div>
+
+    <div class="card allow">
+      <h3>Allowed — with the tag</h3>
+      <p>The identical command, plus <code style="font-family:var(--mono);color:var(--teal)">--tags environment=dev</code>, sails through and provisions successfully.</p>
+      <div class="proof ok">
+        <div class="proof-bar"><span class="tl"><i></i><i></i><i></i></span> provisioningState: Succeeded</div>
+<pre><span class="c-key">az</span> storage account create ... \
+  --tags <span class="c-str">environment=dev</span>
+
+{
+  <span class="c-key">"name"</span>: <span class="c-str">"denytest9582"</span>,
+  <span class="c-key">"provisioningState"</span>: <span class="c-ok">"Succeeded"</span>,
+  <span class="c-key">"tags"</span>: { <span class="c-str">"environment"</span>: <span class="c-str">"dev"</span> }
+}</pre>
+      </div>
+      <p class="diff">Difference from the request on the left: <b>one tag</b>.</p>
+    </div>
+  </div>
+
+  <!-- ============ DOMAIN COVERAGE ============ -->
+  <div class="sec-head">
+    <span class="sec-num">03</span>
+    <div>
+      <h2 class="sec-title">AZ-104 coverage</h2>
+      <p class="sec-sub">The build was scoped against the exam's domains — each provisioned as real infrastructure, not clicked through a guided lab.</p>
+    </div>
+  </div>
+
+  <div class="domains">
+    <div class="dom">
+      <div class="w">20–25%</div>
+      <div class="nm">Identity</div>
+      <div class="bar"><i style="width:90%"></i></div>
+      <ul><li>Entra ID group</li><li>User-assigned identity</li><li>RBAC assignments</li></ul>
+    </div>
+    <div class="dom">
+      <div class="w">20–25%</div>
+      <div class="nm">Governance</div>
+      <div class="bar"><i style="width:95%"></i></div>
+      <ul><li>Azure Policy (Deny)</li><li>Tags baseline</li><li>Budget + alerts</li></ul>
+    </div>
+    <div class="dom">
+      <div class="w">15–20%</div>
+      <div class="nm">Networking</div>
+      <div class="bar"><i style="width:80%"></i></div>
+      <ul><li>VNet + 2 subnets</li><li>NSGs per subnet</li><li>Address planning</li></ul>
+    </div>
+    <div class="dom">
+      <div class="w">20–25%</div>
+      <div class="nm">Compute</div>
+      <div class="bar"><i style="width:85%"></i></div>
+      <ul><li>AKS cluster</li><li>Azure CNI networking</li><li>Identity integration</li></ul>
+    </div>
+  </div>
+
+  <!-- ============ LEARNINGS ============ -->
+  <div class="sec-head">
+    <span class="sec-num">04</span>
+    <div>
+      <h2 class="sec-title">What broke, and what it taught</h2>
+      <p class="sec-sub">The bugs worth keeping — the kind that only surface when you actually deploy.</p>
+    </div>
+  </div>
+
+  <div class="learn">
+    <div class="item">
+      <h4>Built-in policies live at tenant scope</h4>
+      <p>The require-tag policy failed until its ID was resolved with <code>tenantResourceId()</code> instead of <code>subscriptionResourceId()</code> — built-in definitions aren't under the subscription path.</p>
+    </div>
+    <div class="item">
+      <h4>The Contributor GUID isn't universal</h4>
+      <p>The role assignment kept failing on a "role does not exist" error — this subscription's Contributor ID ended <code>20f7382dd24c</code>, not the widely documented value. Derive it, don't hard-code it.</p>
+    </div>
+    <div class="item">
+      <h4>A budget's start date is immutable</h4>
+      <p>Redeploying in a new month failed because the start date had shifted. A stale budget has to be deleted with <code>az consumption budget delete</code> before it can be recreated.</p>
+    </div>
+    <div class="item">
+      <h4>Service CIDR must not overlap the VNet</h4>
+      <p>AKS uses a separate service range (<code>10.30.0.0/16</code>) that deliberately avoids the VNet's <code>10.20.0.0/16</code> — overlap would break in-cluster routing.</p>
+    </div>
+  </div>
+
+  <!-- ============ FOOTER ============ -->
+  <footer>
+    <div class="foot-grid">
+      <div class="cta-row">
+        <a class="btn primary" href="https://github.com/BabaGee01/azure-landing-zone-bicep" target="_blank" rel="noopener">View the Bicep on GitHub →</a>
+        <a class="btn ghost" href="https://www.linkedin.com/in/jide-oloko-2a4bb588" target="_blank" rel="noopener">Connect on LinkedIn</a>
+      </div>
+      <p class="foot-note">Deployed to Azure, verified via CLI &amp; portal, then <b>torn down to control cost</b> — the environment rebuilds from the Bicep in ~15 seconds. Built by <b>Jide Oloko</b>, Cloud &amp; DevOps Engineer.</p>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  const DATA = {
+    identity:{
+      kicker:"Identity · user-assigned managed identity",
+      title:"id-gitops-dev",
+      blurb:"A user-assigned managed identity — a secret-free way for AKS and CI/CD to authenticate to Azure. Created here in the landing zone, then reused by the cluster instead of a client-secret service principal.",
+      why:"Long-lived secrets are a liability. A user-assigned identity can be attached to the cluster and pipelines, rotated by Azure, and scoped with RBAC — no credentials to leak.",
+      bicep:`resource uami '<span class="c-key">Microsoft.ManagedIdentity/userAssignedIdentities</span>@2023-01-31' = {
+  name: <span class="c-str">'id-\${projectName}-\${environment}'</span>
+  location: location
+  tags: tags
+}
+output principalId string = uami.properties.principalId`,
+      proofType:"ok",
+      proofBar:"deployment outputs",
+      proof:`<span class="c-key">managedIdentityClientId</span>    : <span class="c-str">77f7d989-d2ab-45cd-8f58-9e19c195f343</span>
+<span class="c-key">managedIdentityPrincipalId</span> : <span class="c-str">8b27e76d-9926-4004-b020-3216a8e98f90</span>
+<span class="c-dim"># consumed by aks-gitops-dev in the compute phase</span>`
+    },
+    rbac:{
+      kicker:"Governance · role-based access control",
+      title:"Contributor assignments",
+      blurb:"Least-privilege access granted through built-in roles: Contributor scoped to the resource group for both the managed identity and the Entra ID admin group — no owner-level sprawl.",
+      why:"Access is granted at the resource-group scope, not the subscription — the smallest boundary that still lets the identity and the admin team operate. Assignments are declarative, so access is reviewable in source control.",
+      bicep:`<span class="c-com">// derive the role ID from the subscription — don't hard-code it</span>
+var contributorRoleId = subscriptionResourceId(
+  <span class="c-str">'Microsoft.Authorization/roleDefinitions'</span>,
+  <span class="c-str">'b24988ac-6180-42a0-ab88-********'</span>)
+
+resource raIdentity '<span class="c-key">Microsoft.Authorization/roleAssignments</span>@2022-04-01' = {
+  name: guid(resourceGroup().id, principalId, contributorRoleId)
+  properties: { roleDefinitionId: contributorRoleId, principalId: principalId }
+}`,
+      proofType:"ok",
+      proofBar:"az role assignment list",
+      proof:`Principal                        Role         Scope
+-------------------------------  -----------  ---------------
+id-gitops-dev (ServicePrincipal) <span class="c-ok">Contributor</span>  rg-gitops-dev
+grp-gitops-admins (Group)        <span class="c-ok">Contributor</span>  rg-gitops-dev`
+    },
+    policy:{
+      kicker:"Governance · Azure Policy",
+      title:"require-environment-tag",
+      blurb:"A built-in policy that requires an environment tag on resources. Ships in audit mode, then flips to a hard Deny — so untagged resources are rejected at the control plane before they cost anything.",
+      why:"Tags drive cost allocation and ownership. Enforcing them with a Deny effect means the rule can't be quietly ignored — the platform refuses non-compliant resources rather than just reporting them later.",
+      bicep:`<span class="c-com">// built-in policies live at TENANT scope</span>
+var requireTagPolicyId = tenantResourceId(
+  <span class="c-str">'Microsoft.Authorization/policyDefinitions'</span>,
+  <span class="c-str">'871b6d14-10aa-478d-b590-94f262ecfa99'</span>)
+
+resource requireTag '<span class="c-key">Microsoft.Authorization/policyAssignments</span>@2022-06-01' = {
+  name: <span class="c-str">'require-environment-tag'</span>
+  properties: {
+    policyDefinitionId: requireTagPolicyId
+    enforcementMode: <span class="c-str">'Default'</span>  <span class="c-com">// Default = enforced (Deny)</span>
+    parameters: { tagName: { value: <span class="c-str">'environment'</span> } }
+  }
+}`,
+      proofType:"no",
+      proofBar:"RequestDisallowedByPolicy",
+      proof:`<span class="c-no">(RequestDisallowedByPolicy)</span> Resource 'denytest1145'
+was disallowed by policy.
+  <span class="c-key">policyDefinitionEffect</span> : <span class="c-no">"deny"</span>
+  <span class="c-key">tagName</span>                : <span class="c-str">"environment"</span>
+  <span class="c-key">operator</span>               : "Exists"  →  <span class="c-no">false</span>
+<span class="c-dim"># adding --tags environment=dev makes the same request succeed</span>`
+    },
+    budget:{
+      kicker:"Governance · cost management",
+      title:"monthly-budget",
+      blurb:"A £50 monthly budget with two notification thresholds — an early warning at 80% of actual spend and a forecast alert at 100% — emailed automatically.",
+      why:"On a personal subscription, a runaway cluster is the real risk. A forecast-based alert warns before the money is spent, not after, acting as a safety net around the compute phase.",
+      bicep:`resource budget '<span class="c-key">Microsoft.Consumption/budgets</span>@2023-11-01' = {
+  name: <span class="c-str">'monthly-budget'</span>
+  properties: {
+    amount: 50
+    timeGrain: <span class="c-str">'Monthly'</span>
+    notifications: {
+      Actual_80:     { threshold: 80,  thresholdType: <span class="c-str">'Actual'</span> }
+      Forecasted_100:{ threshold: 100, thresholdType: <span class="c-str">'Forecasted'</span> }
+    }
+  }
+}`,
+      proofType:"ok",
+      proofBar:"cost management · budgets",
+      proof:`Name            Amount   Time grain   Alerts
+--------------  -------  -----------  ------------------------
+<span class="c-ok">monthly-budget</span>  £50      Monthly      80% actual · 100% forecast`
+    },
+    snetaks:{
+      kicker:"Networking · subnet + NSG",
+      title:"snet-aks",
+      blurb:"The subnet the AKS node pool is deployed into, carved from the VNet. Its NSG allows traffic within the virtual network and denies the rest by default.",
+      why:"Keeping the cluster on its own subnet with a dedicated NSG isolates node traffic and gives a clear boundary to reason about — the app tier lives on a separate subnet with different rules.",
+      bicep:`{
+  name: <span class="c-str">'snet-aks'</span>
+  properties: {
+    addressPrefix: <span class="c-str">'10.20.1.0/24'</span>
+    networkSecurityGroup: { id: nsgAks.id }
+  }
+}
+<span class="c-com">// nsg-gitops-aks-dev: allow VirtualNetwork inbound, deny default</span>`,
+      proofType:"ok",
+      proofBar:"az network vnet subnet",
+      proof:`Name      AddressPrefix   NSG
+--------  --------------  -------------------
+<span class="c-ok">snet-aks</span>  10.20.1.0/24    nsg-gitops-aks-dev`
+    },
+    snetapp:{
+      kicker:"Networking · subnet + NSG",
+      title:"snet-app",
+      blurb:"The application-tier subnet, with an NSG that permits inbound HTTPS (443) from the internet to the app while the network stays otherwise closed.",
+      why:"Separating the public-facing app tier from the cluster subnet means ingress rules are explicit and scoped — only 443 is open, and only to this subnet.",
+      bicep:`{
+  name: <span class="c-str">'snet-app'</span>
+  properties: {
+    addressPrefix: <span class="c-str">'10.20.2.0/24'</span>
+    networkSecurityGroup: { id: nsgApp.id }
+  }
+}
+<span class="c-com">// nsg-gitops-app-dev: allow Tcp/443 from Internet</span>`,
+      proofType:"ok",
+      proofBar:"az network nsg rule",
+      proof:`Name                 Priority  Access  Port
+-------------------  --------  ------  ----
+Allow-HTTPS-Inbound  100       <span class="c-ok">Allow</span>   443`
+    },
+    aks:{
+      kicker:"Compute · Azure Kubernetes Service",
+      title:"aks-gitops-dev",
+      blurb:"A two-node AKS cluster deployed into the landing zone: nodes join snet-aks and the cluster authenticates with the id-gitops-dev identity created earlier. Azure CNI, Kubernetes 1.35.6.",
+      why:"This is the payoff — the compute layer runs on the governed network and identity built in the earlier phases. The node internal IPs (10.20.1.x) prove the cluster is genuinely inside snet-aks, not a default VNet.",
+      bicep:`resource aks '<span class="c-key">Microsoft.ContainerService/managedClusters</span>@2024-05-01' = {
+  identity: { type: <span class="c-str">'UserAssigned'</span>, userAssignedIdentities: { <span class="c-str">'\${uami.id}'</span>: {} } }
+  properties: {
+    agentPoolProfiles: [ {
+      name: <span class="c-str">'systempool'</span>, count: 2, vmSize: <span class="c-str">'Standard_D2s_v3'</span>
+      vnetSubnetID: aksSubnet.id  <span class="c-com">// existing snet-aks</span>
+    } ]
+    networkProfile: { networkPlugin: <span class="c-str">'azure'</span>, serviceCidr: <span class="c-str">'10.30.0.0/16'</span> }
+  }
+}`,
+      proofType:"ok",
+      proofBar:"kubectl get nodes -o wide",
+      proof:`NAME                             STATUS  VERSION   INTERNAL-IP
+-------------------------------  ------  --------  -----------
+aks-systempool-90695054-vmss0..  <span class="c-ok">Ready</span>   v1.35.6   <span class="c-str">10.20.1.5</span>
+aks-systempool-90695054-vmss0..  <span class="c-ok">Ready</span>   v1.35.6   <span class="c-str">10.20.1.4</span>
+<span class="c-dim"># both nodes inside snet-aks (10.20.1.0/24) ✓</span>`
+    }
+  };
+
+  const drawer = document.getElementById('drawer');
+  const nodes = Array.from(document.querySelectorAll('.node'));
+
+  function render(key){
+    const d = DATA[key];
+    if(!d) return;
+    nodes.forEach(n=>n.classList.toggle('is-active', n.dataset.key===key));
+    const proofClass = d.proofType==='no' ? 'no' : 'ok';
+    drawer.innerHTML = `
+      <div class="d-head">
+        <p class="d-kicker">${d.kicker}</p>
+        <h3 class="d-title">${d.title}</h3>
+        <p class="d-blurb">${d.blurb}</p>
+      </div>
+      <div class="d-body">
+        <div>
+          <p class="d-label">Why this exists</p>
+          <p style="color:var(--mid);font-size:14px;margin:0">${d.why}</p>
+        </div>
+        <div>
+          <p class="d-label">Bicep</p>
+          <pre>${d.bicep}</pre>
+        </div>
+        <div>
+          <p class="d-label">Evidence</p>
+          <div class="proof ${proofClass}">
+            <div class="proof-bar"><span class="tl"><i></i><i></i><i></i></span> ${d.proofBar}</div>
+            <pre>${d.proof}</pre>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  nodes.forEach(n=>{
+    n.addEventListener('click', ()=>render(n.dataset.key));
+  });
+</script>
+</body>
+</html>
